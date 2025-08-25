@@ -24,6 +24,10 @@ dependencies:
   # Crypto and encoding
   crypto: ^3.0.3
   convert: ^3.1.1
+  bs58: ^1.0.2  # For proper base58 encoding
+  ed25519_edwards: ^0.3.1  # For ed25519 operations
+  cryptography: ^2.7.0  # For X25519 key exchange
+  pinenacl: ^0.6.0  # For proper TweetNaCl box encryption
   
   # HTTP requests
   http: ^1.1.2

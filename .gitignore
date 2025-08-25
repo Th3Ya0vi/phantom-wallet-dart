@@ -82,3 +82,4 @@ android/gradlew.bat
 *.freezed.dart
 *.mocks.dart
 .metadata
+PRODUCTION_ENCRYPTION_GUIDE.md

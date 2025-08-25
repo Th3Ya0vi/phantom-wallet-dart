@@ -121,8 +121,7 @@ To add new Phantom wallet features:
 This app demonstrates an unofficial integration with Phantom wallet using their deeplink API:
 
 - **Universal Links**: `https://phantom.app/ul/v1/`
-- **Custom Protocol**: `phantom://v1/` (fallback)
-- **Supported Methods**: connect, disconnect, signTransaction, signMessage, signAndSendTransaction
+- **Supported Methods**: connect, disconnect, signTransaction, signAllTransactions, signMessage
 
 This is an unofficial implementation intended as an educational example and is not affiliated with, endorsed by, or officially connected to Phantom.
 

@@ -14,7 +14,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _messageController = TextEditingController();
+  // Pre-fill with exact React Native message for testing
+  final _messageController = TextEditingController(
+    text: 'To avoid digital dognappers, sign below to authenticate with CryptoCorgis.'
+  );
   final _transactionController = TextEditingController();
   String? _lastResponse;
 
@@ -53,15 +56,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _connectWallet() async {
     final phantomService = context.read<PhantomService>();
-    final response = await phantomService.connect(
-      appUrl: 'phantomdemo://',
-      cluster: 'devnet',
+    
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Using direct phantom:// protocol...'))
     );
+    
+    // Use direct protocol approach
+    final response = await phantomService.connect();
+
+    // Clear the snackbar
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
     if (response.isSuccess) {
-      _showResponse('Success', response.data!, false);
+      _showResponse('Direct Protocol Used', 'Using phantom:// protocol which should stay within the app without opening a browser.', false);
+      
+      // Add debugging info to last response
+      setState(() {
+        _lastResponse = "Connection request sent using phantom:// protocol directly.\n\n"
+                      + "This should prevent the web browser from opening and keep the flow within the Phantom app.";
+      });
     } else {
-      _showResponse('Error', response.error!, true);
+      _showResponse('Connection Error', 
+        '${response.error!}\n\nMake sure Phantom app can handle phantom:// protocol links.', 
+        true);
     }
   }
 
@@ -74,6 +92,19 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       _showResponse('Error', response.error!, true);
     }
+  }
+
+  Future<void> _reconnectWallet() async {
+    final phantomService = context.read<PhantomService>();
+    
+    // First disconnect
+    await phantomService.disconnect();
+    
+    // Small delay to ensure clean disconnect
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Then reconnect
+    await _connectWallet();
   }
 
   Future<void> _signMessage() async {
@@ -95,15 +126,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _signTransaction() async {
-    if (_transactionController.text.isEmpty) {
-      _showResponse('Error', 'Please enter a transaction to sign', true);
-      return;
-    }
-
     final phantomService = context.read<PhantomService>();
+    
+    // Use provided transaction or let service create dummy transaction for testing
+    final transaction = _transactionController.text.isEmpty ? null : _transactionController.text;
+    
     final response = await phantomService.signTransaction(
-      transaction: _transactionController.text,
-      message: 'Sign this demo transaction',
+      transaction: transaction, // null = use dummy transaction for testing
     );
 
     if (response.isSuccess) {
@@ -144,13 +173,48 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.account_balance_wallet,
                           variant: ActionButtonVariant.primary,
                         )
-                      else
-                        ActionButton(
-                          text: 'Disconnect Wallet',
-                          onPressed: _disconnectWallet,
-                          icon: Icons.logout,
-                          variant: ActionButtonVariant.secondary,
+                      else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ActionButton(
+                                text: 'Reconnect',
+                                onPressed: _reconnectWallet,
+                                icon: Icons.refresh,
+                                variant: ActionButtonVariant.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ActionButton(
+                                text: 'Disconnect',
+                                onPressed: _disconnectWallet,
+                                icon: Icons.logout,
+                                variant: ActionButtonVariant.secondary,
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: phantomService.shouldReconnect 
+                              ? AppColors.orange.withValues(alpha: 0.3)
+                              : AppColors.yellow.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            phantomService.shouldReconnect
+                              ? '⚠️ Session may be expired - Reconnect recommended!'
+                              : '💡 Try "Reconnect" if signing fails - gets fresh session',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -166,39 +230,69 @@ class _HomeScreenState extends State<HomeScreen> {
                         controller: _messageController,
                         decoration: const InputDecoration(
                           labelText: 'Message to sign',
-                          hintText: 'Enter any message...',
+                          hintText: 'Try: To avoid digital dognappers, sign below to authenticate with CryptoCorgis.',
                         ),
                         maxLines: 3,
                       ),
                       const SizedBox(height: 16),
-                      ActionButton(
-                        text: 'Sign Message',
-                        onPressed: phantomService.isConnected ? _signMessage : null,
-                        icon: Icons.edit_note,
-                        variant: ActionButtonVariant.primary,
-                      ),
+                                      ActionButton(
+                  text: 'Sign Message (React Native Format)',
+                  onPressed: phantomService.isConnected ? _signMessage : null,
+                  icon: Icons.edit_note,
+                  variant: ActionButtonVariant.primary,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.green.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    '✅ Now using EXACT React Native payload format',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
                     ],
                   ),
                 ),
                 
                 const SizedBox(height: 24),
                 
-                // Transaction signing section
+                // Transaction signing section (New Architecture)
                 WalletCard(
-                  title: 'Sign Transaction',
+                  title: 'Sign & Broadcast Transaction',
                   child: Column(
                     children: [
                       TextField(
                         controller: _transactionController,
                         decoration: const InputDecoration(
-                          labelText: 'Transaction data (base64)',
-                          hintText: 'Enter transaction data...',
+                          labelText: 'Transaction data (optional)',
+                          hintText: 'Leave empty to use dummy transaction for testing...',
                         ),
                         maxLines: 4,
                       ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.lavender.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          '🔄 New Flow: Phantom signs → App broadcasts',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       ActionButton(
-                        text: 'Sign Transaction',
+                        text: 'Sign & Broadcast',
                         onPressed: phantomService.isConnected ? _signTransaction : null,
                         icon: Icons.receipt_long,
                         variant: ActionButtonVariant.primary,
@@ -251,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       _buildInstruction(
                         '4.',
-                        'Use "Sign Message" or "Sign Transaction" features',
+                        'Use "Sign Message" or "Sign & Broadcast Transaction" features',
                       ),
                       const SizedBox(height: 12),
                       Container(
